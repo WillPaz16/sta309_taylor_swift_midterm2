@@ -1,0 +1,278 @@
+---
+title: "Midterm 2 - Taylor Swift - STA309"
+author: "Will Paz"
+date: "2024-04-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidytext)
+library(ggwordcloud)
+library(patchwork)
+library(figpatch)
+```
+
+## The Mission
+
+In this problem, you will be performing a sentiment analysis of her music. You will create a dashboard that analyzes her music and how it has changed over time. For your dashboard, do the following:
+
+  * Among the repository is a set of folders containing the lyrics for each of Taylor Swift's albums. Pick     two albums. 
+  * Include world clouds for the two albums you have chosen. Make sure it is clear which is which, and        that you remove stop words!
+  * Perform a sentiment analysis comparing these albums. Choose an appropriate visual for this comparison.
+  * The repository also includes a csv file with the Spotify metadata for all of her songs. Create visuals     that show the relationship between song sentiment and at least two different musical attributes of the     songs from the Spotify metadata. 
+  * Include at least 6 plots in your dashboard (2 word clouds + 4 additional plots). Again, be sure to add     appropriate titles and annotations to emphasize the story you want to present. 
+
+
+### Read in the Data
+
+```{r}
+swift <- read_csv("taylor_swift_genius_data.csv")
+```
+
+```{r}
+speak_now <- swift %>% 
+  filter(Album == "Speak Now")
+
+red <- swift %>% 
+  filter(Album == "Red")
+
+stopwords <- get_stopwords()
+```
+
+## Speak Now Word Cloud
+
+```{r}
+speak_now_lyrics <- speak_now %>% 
+  unnest_tokens(word, Lyrics)
+
+speak_now_pop_words <- speak_now_lyrics %>% 
+  filter(!(word %in% stopwords$word)) %>% 
+  group_by(word) %>%
+  summarize(N=n()) %>%
+  arrange(desc(N)) %>%
+  slice(1:100)
+
+speak_now_cloud <- ggplot(speak_now_pop_words, aes(label=word, size=N,color=N)) +
+  geom_text_wordcloud() +
+  scale_size_area(max_size=15,expand=T) +
+  scale_color_gradient(low = "mediumorchid4", high = "orchid1") +
+  theme_minimal() +
+  labs(title="Speak Now") +
+  theme(plot.title = element_text(hjust = 0.5, size = 20, color="darkorchid3"))
+speak_now_cloud
+```
+
+## Red Word Cloud
+
+```{r}
+red_lyrics <- red %>% 
+  unnest_tokens(word, Lyrics)
+
+red_pop_words <- red_lyrics %>% 
+  filter(!(word %in% stopwords$word)) %>% 
+  group_by(word) %>%
+  summarize(N=n()) %>%
+  arrange(desc(N)) %>%
+  slice(1:100)
+
+red_cloud <- ggplot(red_pop_words, aes(label=word, size=N,color=N)) +
+  geom_text_wordcloud() +
+  scale_size_area(max_size=15, expand=T) +
+  scale_color_gradient(low = "tan2", high = "firebrick1") +
+  theme_minimal() +
+  labs(title="Red") +
+  theme(plot.title = element_text(hjust = 0.5, size = 20, color="firebrick1"))
+red_cloud
+```
+
+
+## Sentiment Analysis of Speak Now and Red
+
+```{r}
+word_sentiments <- get_sentiments("bing")
+
+speak_now_pop_words_sent <- speak_now_lyrics %>%
+  group_by(word) %>%
+  summarize(N=n()) %>%
+  arrange(desc(N)) %>%
+  inner_join(word_sentiments, by="word") %>%
+  slice(1:100)
+
+red_pop_words_sent <- red_lyrics %>%
+  group_by(word) %>%
+  summarize(N=n()) %>%
+  arrange(desc(N)) %>%
+  inner_join(word_sentiments, by="word") %>%
+  slice(1:100)
+
+both_album_lyrics <- bind_rows(speak_now_lyrics, red_lyrics) %>%
+  anti_join(stopwords) %>% 
+  inner_join(word_sentiments, by="word")
+
+both_album_summary <- both_album_lyrics %>%
+  group_by(Album, sentiment) %>%
+  summarize(N=n()) %>% 
+  group_by(Album) %>%
+  mutate(Prop=N/sum(N))
+
+both_album_summary$Album <- factor(both_album_summary$Album, levels = c("Speak Now", "Red"))
+
+speak_now_vs_red <- ggplot(both_album_summary) +
+  geom_col(aes(x=Album, y=Prop, fill=sentiment)) +
+  scale_fill_manual(values=c("tan2","goldenrod1")) +
+  annotate("label", x=1, y=0.8, label="Negative\nWords", size=6) +
+  annotate("label", x=2, y=0.3, label="Positive\nWords", size=6) +
+  coord_cartesian(expand=F) +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(y=element_blank(),
+       title="Comparing the Sentiments of Taylor Swift's Albums: Speak Now and Red",
+       subtitle="Sentiments are based on the sentiments given in sentiment dataframe built into R",
+       x=element_blank())
+speak_now_vs_red
+```
+
+### Read in the Spotify Data
+
+```{r}
+spotify <- read_csv("taylor_swift_spotify_data.csv")
+```
+
+
+
+```{r}
+speak_now_spotify <- spotify %>% 
+  filter(Album == "Speak Now")
+
+speak_now_song_sent <- speak_now %>% 
+  group_by(`Song Name`) %>% 
+  unnest_tokens(word, Lyrics) %>% 
+  filter(!(word %in% stopwords)) %>% 
+  group_by(`Song Name`,word) %>%
+  summarize(N=n()) %>%
+  arrange(desc(N)) %>%
+  inner_join(word_sentiments, by="word") %>%
+  slice(1:100)
+
+speak_now_metadata <- inner_join(speak_now_song_sent, speak_now_spotify) %>% 
+  select(!c(URI, `Playlist ID`)) %>% 
+  group_by(`Song Name`) %>% 
+  mutate(Prop=N/sum(N))
+
+speak_now_acoustic <- ggplot(speak_now_metadata) +
+  geom_col(aes(y = reorder(`Song Name`, Acousticness), x = Prop, fill = sentiment)) +
+  coord_cartesian(expand=F) +
+  scale_fill_manual(values=c("gray80","orchid3")) +
+  annotate("label", x=.7, y=8, label="Negative\nWords", size=4) +
+  annotate("label", x=.26, y=6.5, label="Positive\nWords", size=4) +
+  annotate("label", x=.5, y=13, label="Most Acoustic", size=4, fill="transparent") +
+  annotate("label", x=.5, y=1, label="Least Acoustic", size=4, fill="transparent") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(title="Sentiment Analysis of Speak Now Arranged by Acousticness",
+       subtitle="Acousticness is based on Spotify's metadata, sorted from most acoustic to least",
+       y=element_blank(),
+       x=element_blank())
+speak_now_acoustic
+```
+
+```{r}
+speak_now_valence <- ggplot(speak_now_metadata) +
+  geom_col(aes(y = reorder(`Song Name`, Valence), x = Prop, fill = sentiment)) +
+  coord_cartesian(expand=F) +
+  scale_fill_manual(values=c("gray80","orchid3")) +
+  annotate("label", x=.75, y=9.5, label="Negative\nWords", size=4) +
+  annotate("label", x=.36, y=4.5, label="Positive\nWords", size=4) +
+  annotate("label", x=.5, y=13, label="Greatest Valence", size=4, fill="transparent") +
+  annotate("label", x=.5, y=1, label="Least Valence", size=4, fill="transparent") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(title="Sentiment Analysis of Speak Now Arranged by Valence",
+       subtitle="Valence is based on Spotify's metadata, sorted from greatest valance to least",
+       y=element_blank(),
+       x=element_blank())
+speak_now_valence
+```
+
+
+```{r}
+red_spotify <- spotify %>% 
+  filter(Album == "Red")
+
+red_song_sent <- red %>% 
+  group_by(`Song Name`) %>% 
+  unnest_tokens(word, Lyrics) %>% 
+  filter(!(word %in% stopwords)) %>% 
+  group_by(`Song Name`,word) %>%
+  summarize(N=n()) %>%
+  arrange(desc(N)) %>%
+  inner_join(word_sentiments, by="word") %>%
+  slice(1:100)
+
+red_metadata <- inner_join(red_song_sent, red_spotify) %>% 
+  select(!c(URI, `Playlist ID`)) %>% 
+  group_by(`Song Name`) %>% 
+  mutate(Prop=N/sum(N))
+
+red_acoustic <- ggplot(red_metadata) +
+  geom_col(aes(y = reorder(`Song Name`, Acousticness), x = Prop, fill = sentiment)) +
+  coord_cartesian(expand=F) +
+  scale_fill_manual(values=c("firebrick","tan2")) +
+  annotate("label", x=.7, y=12, label="Negative\nWords", size=4) +
+  annotate("label", x=.4, y=7.5, label="Positive\nWords", size=4) +
+  annotate("label", x=.5, y=15, label="Most Acoustic", size=4, fill="transparent") +
+  annotate("label", x=.5, y=1, label="Least Acoustic", size=4, fill="transparent") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(title="Sentiment Analysis of Red Arranged by Acousticness",
+       subtitle="Acousticness is based on Spotify's metadata, sorted from most acoustic to least",
+       y=element_blank(),
+       x=element_blank())
+red_acoustic
+```
+
+```{r}
+red_valence <- ggplot(red_metadata) +
+  geom_col(aes(y = reorder(`Song Name`, Valence), x = Prop, fill = sentiment)) +
+  coord_cartesian(expand=F) +
+  scale_fill_manual(values=c("firebrick","tan2")) +
+  annotate("label", x=.8, y=14, label="Negative\nWords", size=4) +
+  annotate("label", x=.4, y=9, label="Positive\nWords", size=4) +
+  annotate("label", x=.5, y=15, label="Greatest Valence", size=4, fill="transparent") +
+  annotate("label", x=.5, y=1, label="Least Valence", size=4, fill="transparent") +
+  theme_minimal() +
+  theme(legend.position = "none") +
+  labs(title="Sentiment Analysis of Red Arranged by Valence",
+       subtitle="Valence is based on Spotify's metadata, sorted from greatest valence to least",
+       y=element_blank(),
+       x=element_blank())
+red_valence
+```
+
+### Create the Dashboard
+
+```{r}
+tay <- (speak_now_cloud + speak_now_vs_red + red_cloud) /
+  (speak_now_acoustic + red_acoustic) /
+  (speak_now_valence + red_valence)
+
+tay <- tay +
+  plot_annotation(title = "Analyzing the Sentiments from Taylor Swift's Albums: Speak Now and Red",
+                  theme = theme(plot.title = element_text(size = 30, hjust=.5),
+                                plot.caption = element_text(size = 25),
+                                plot.subtitle = element_text(size = 25, hjust=.5)),
+                  caption = "Source: Alice Zhao",
+                  subtitle = "Created by: Will Paz") 
+```
+
+
+### Save the Image
+
+```{r}
+ggsave(filename="taylorSwiftAnalysis.png", plot=tay,
+       device="png",
+       width=30, height=15, dpi=300)
+```
+
