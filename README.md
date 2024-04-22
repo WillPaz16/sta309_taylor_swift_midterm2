@@ -1,6 +1,8 @@
 # Sentiment Analysis of Taylor Swift's Albums: Speak Now and Red
 
-The Prompt:
+## Author: Will Paz
+
+## The Prompt:
 
 In this problem, you will be performing a sentiment analysis of her music. You will create a dashboard that analyzes her music and how it has changed over time. For your dashboard, do the following:
 
@@ -9,7 +11,7 @@ In this problem, you will be performing a sentiment analysis of her music. You w
   * Perform a sentiment analysis comparing these albums. Choose an appropriate visual for this comparison. 
   * The repository also includes a csv file with the Spotify metadata for all of her songs. Create visuals that show the relationship between song sentiment and at least two different musical      attributes of the songs from the Spotify metadata.
 
-The Response:
+## The Response:
 
 ![image](https://github.com/WillPaz16/sta309_taylor_swift_midterm2/assets/144275029/9790027e-bb18-4fd8-9879-6c33dd281f60)
 
