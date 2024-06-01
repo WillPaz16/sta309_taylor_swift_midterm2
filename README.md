@@ -1,6 +1,6 @@
 # Sentiment Analysis of Taylor Swift's Albums: Speak Now and Red
 
-## Author: Will Paz
+Author: Will Paz
 
 ## The Prompt:
 
